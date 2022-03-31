@@ -1,0 +1,12 @@
+[package]
+name = "wassup"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+wasmer = "2.2.1"
+wasmer-types = "2.2.1"
+loupe = "0.1.3"
+wasmer-compiler-llvm = "2.2.1"
+wasmer-engine-universal = "2.2.1"
+criterion = "0.3.5"
