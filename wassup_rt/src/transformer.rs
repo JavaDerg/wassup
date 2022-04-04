@@ -25,11 +25,24 @@ impl ModuleMiddleware for ModuleTransformer {
         })
     }
 
-    fn transform_module_info(&self, _info: &mut ModuleInfo) {}
+    fn transform_module_info(&self, _info: &mut ModuleInfo) {
+    }
 }
 
 impl FunctionMiddleware for FunctionTransformer {
     fn feed<'a>(&mut self, operator: Operator<'a>, state: &mut MiddlewareReaderState<'a>) -> Result<(), MiddlewareError> {
+        // match &operator {
+        //     Operator::Call { .. } => {}
+        //     Operator::CallIndirect { .. } => {}
+        //     Operator::ReturnCall { .. } => {}
+        //     Operator::ReturnCallIndirect { .. } => {}
+        //     Operator::LocalGet { .. } => {}
+        //     Operator::LocalSet { .. } => {}
+        //     Operator::LocalTee { .. } => {}
+        //     Operator::GlobalGet { .. } => {}
+        //     Operator::GlobalSet { .. } => {}
+        //     _ => (),
+        // }
         // if let Operator::LocalGet { .. } = &operator {
         //     state.push_operator(Operator::Call { function_index: 0 })
         // }
