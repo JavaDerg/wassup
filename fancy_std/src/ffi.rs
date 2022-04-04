@@ -6,6 +6,9 @@ extern "C" {
     pub static yield_rt: u32;
 
     pub fn wake();
+
+    pub fn log_n(n: u64);
+    pub fn shutdown_rt() -> !;
 }
 
 #[no_mangle]

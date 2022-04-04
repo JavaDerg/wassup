@@ -6,12 +6,12 @@ use std::future::Future;
 use std::marker::PhantomData;
 use std::mem;
 use std::pin::Pin;
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::{Duration, Instant};
-use crate::Yield;
+use crate::{log, Yield};
 
 static IN_RUNTIME: AtomicBool = AtomicBool::new(false);
 static TASK_ID: AtomicUsize = AtomicUsize::new(0);
@@ -43,7 +43,7 @@ pub struct Runtime {
 
 pub struct JoinHandle<T: 'static> {
     _phantom: PhantomData<T>,
-    handle: Rc<TaskHandle>,
+    handle: Weak<TaskHandle>,
 }
 
 type DynFuture = Pin<Box<dyn Future<Output = Box<dyn Any + 'static>> + 'static>>;
@@ -121,19 +121,31 @@ impl Runtime {
 
         IN_RUNTIME.store(false, Ordering::Release);
 
-        return next_timer_wakeup.unwrap_or(Duration::from_secs(0));
+        if self.tasks.borrow().is_empty() {
+            unsafe { crate::ffi::shutdown_rt(); }
+        }
+
+        return next_timer_wakeup.unwrap_or(Duration::from_secs(u64::MAX));
+    }
+
+    pub fn shutdown(&self) {
+        // drop all tasks for clean exit
+        for _ in self.tasks.borrow_mut().drain() {}
     }
 
     pub fn spawn<R: 'static>(&self, future: impl Future<Output = R> + 'static) -> JoinHandle<R> {
+        log(2);
         let task = Box::pin(async move {
             let result = future.await;
             Box::new(result) as Box<dyn Any>
         });
+        log(3);
 
         let mut id = TASK_ID.fetch_add(1, Ordering::Relaxed);
         while self.tasks.borrow().contains_key(&id) {
             id = TASK_ID.fetch_add(1, Ordering::Relaxed);
         }
+        log(4);
 
         let task_handle = Rc::new(TaskHandle {
             future: RefCell::new(task),
@@ -142,10 +154,12 @@ impl Runtime {
         });
         let join_handle = JoinHandle {
             _phantom: PhantomData,
-            handle: task_handle.clone(),
+            handle: Rc::downgrade(&task_handle),
         };
 
         self.tasks.borrow_mut().insert(id, task_handle);
+        self.poll_again.borrow_mut().push_back(id);
+        log(5);
 
         join_handle
     }
@@ -212,13 +226,17 @@ impl<T: 'static> Future for JoinHandle<T> {
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(result) = self.handle.result.borrow_mut().take() {
-            // it's fine to unwrap here, since we know the type must be `T`
-            let t: Box<T> = result.downcast().unwrap();
-            Poll::Ready(*t)
+        if let Some(handle) = self.handle.upgrade() {
+            if let Some(result) = handle.result.borrow_mut().take() {
+                // it's fine to unwrap here, since we know the type must be `T`
+                let t: Box<T> = result.downcast().unwrap();
+                Poll::Ready(*t)
+            } else {
+                handle.join_waker.borrow_mut().replace(cx.waker().clone());
+                Poll::Pending
+            }
         } else {
-            self.handle.join_waker.borrow_mut().replace(cx.waker().clone());
-            Poll::Pending
+            panic!("Task has been dropped");
         }
     }
 }

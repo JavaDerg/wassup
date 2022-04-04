@@ -17,6 +17,9 @@ pub fn generate_imports(store: &Store, env: WasiEnv) -> ImportObject{
             "clock_time_get" => Function::new_native_with_env(store, env.clone(), syscalls::clock_time_get),
             "fd_write" => Function::new_native_with_env(store, env.clone(), syscalls::fd_write),
             "random_get" => Function::new_native_with_env(store, env.clone(), syscalls::random_get),
+            "environ_get" => Function::new_native_with_env(store, env.clone(), syscalls::environ_get),
+            "environ_sizes_get" => Function::new_native_with_env(store, env.clone(), syscalls::environ_sizes_get),
+            "proc_exit" => Function::new_native_with_env(store, env.clone(), syscalls::proc_exit),
         }
     }
 }

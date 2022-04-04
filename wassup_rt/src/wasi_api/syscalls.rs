@@ -1,18 +1,31 @@
+use std::io::Write;
+use libc::EXIT_SUCCESS;
 use rand::RngCore;
-use wasi::{Errno, ERRNO_ADDRNOTAVAIL, ERRNO_SUCCESS};
-use wasmer::{Array, WasmPtr};
+use wasi::{Errno, ERRNO_ADDRNOTAVAIL, ERRNO_BADF, ERRNO_INVAL, ERRNO_IO, ERRNO_SUCCESS, Exitcode};
+use wasmer::{Array, WasmError, WasmPtr};
+use wasmer::CompileError::Wasm;
 use wasmer_types::ValueType;
 use crate::wasi_api::env::WasiEnv;
 use crate::wasi_api::unix::{platform_clock_res_get, platform_clock_time_get};
 
-macro_rules! deref_item(
+macro_rules! deref_item (
     ($arg:expr, $memory:expr) => {
         if let Some(cell) = $arg.deref($memory) {
             cell
         } else {
             return ERRNO_ADDRNOTAVAIL;
         }
-    }
+    };
+);
+
+macro_rules! deref_array (
+    ($arg:expr, $start:expr => $end:expr, $memory:expr) => {
+        if let Some(cell) = $arg.deref($memory, $start, $end) {
+            cell
+        } else {
+            return ERRNO_ADDRNOTAVAIL;
+        }
+    };
 );
 
 pub fn args_get(
@@ -67,16 +80,6 @@ pub fn clock_time_get(
     platform_clock_time_get(clock_id, precision, out_addr)
 }
 
-pub fn fd_write(
-    env: &WasiEnv,
-    fd: wasi::Fd,
-    iovs: WasmPtr<Ciovec, Array>,
-    iovs_len: u32,
-    nwritten: WasmPtr<u32>,
-) -> Errno {
-    todo!()
-}
-
 pub fn random_get(
     env: &WasiEnv,
     buf: WasmPtr<u8, Array>,
@@ -87,11 +90,96 @@ pub fn random_get(
     let mut rand_buf = vec![0; buf_len as usize];
     rand::thread_rng().fill_bytes(&mut rand_buf);
 
+    let view = memory.view::<u8>();
+
+    let end = buf.offset() + buf_len;
+    if view.len() < end as usize {
+        return ERRNO_INVAL;
+    }
+
     unsafe {
-        memory.view::<u8>()
-            .subarray(buf.offset(), (buf.offset() + buf_len))
+        view
+            .subarray(buf.offset(), end)
             .copy_from(&rand_buf);
     }
+
+    ERRNO_SUCCESS
+}
+
+pub fn environ_get(
+    env: &WasiEnv,
+    environ: WasmPtr<WasmPtr<u8, Array>, Array>,
+    environ_buf: WasmPtr<u8, Array>,
+) -> Errno {
+    ERRNO_SUCCESS
+}
+
+pub fn environ_sizes_get(
+    env: &WasiEnv,
+    environ_count: WasmPtr<u32>,
+    environ_buf_size: WasmPtr<u32>,
+) -> Errno {
+    let memory = env.memory();
+
+    deref_item!(environ_count, memory).set(0);
+    deref_item!(environ_buf_size, memory).set(0);
+
+    ERRNO_SUCCESS
+}
+
+pub fn proc_exit(
+    _env: &WasiEnv,
+    _error_code: wasi::Exitcode,
+) -> Result<(), WasmError> {
+    Err(WasmError::Generic("proc_exit".to_string()))
+}
+
+pub fn fd_write(
+    env: &WasiEnv,
+    fd: wasi::Fd,
+    iovs: WasmPtr<Ciovec, Array>,
+    iovs_len: u32,
+    nwritten: WasmPtr<u32>,
+) -> Errno {
+    println!("{}", fd);
+    let mut stream: Box<dyn Write> = match fd {
+        1 => Box::new(std::io::stdout()),
+        2 => Box::new(std::io::stderr()),
+        _ => return ERRNO_BADF
+    };
+
+    let memory = env.memory();
+    let iovs = deref_array!(iovs, 0 => iovs_len, memory);
+    let mut written = 0;
+    for iov in iovs {
+        let Ciovec {
+            ptr, len
+        }: Ciovec = iov.get();
+        println!("{} -> {}", ptr.offset(), len as u32);
+
+        let end = ptr.offset() + len as u32;
+
+        let mut view = memory.view::<u8>();
+        if view.len() < end as usize {
+            return ERRNO_INVAL;
+        }
+        view = view.subarray(ptr.offset(), end);
+        let slice = &view[..];
+
+        // SAFETY: we have exclusive access to the memory and Cell is transparent type
+        let slice_u8: &[u8] = unsafe {
+            std::mem::transmute(slice)
+        };
+        println!("{:?}", slice_u8);
+
+        if let Err(_) = stream.write_all(slice_u8) {
+            return ERRNO_IO;
+        };
+
+        written += len;
+    }
+
+    deref_item!(nwritten, memory).set(written as u32);
 
     ERRNO_SUCCESS
 }
