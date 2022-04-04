@@ -1,26 +1,39 @@
 use std::any::Any;
 use std::borrow::Borrow;
-use std::cell::{Ref, RefCell};
+use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::future::Future;
+use std::marker::PhantomData;
 use std::mem;
 use std::pin::Pin;
 use std::rc::Rc;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::{Duration, Instant};
+use crate::Yield;
 
 static IN_RUNTIME: AtomicBool = AtomicBool::new(false);
-static RUNTIME: Runtime = Runtime {
-    timers: Default::default(),
-    timer_queue: Default::default(),
-    tasks: Default::default(),
-    poll_again: RefCell::new(Default::default()),
-};
+static TASK_ID: AtomicUsize = AtomicUsize::new(0);
+static SLEEP_ID: AtomicUsize = AtomicUsize::new(0);
+
+thread_local! {
+    pub(crate) static RUNTIME: Rc<Runtime> = {
+        Rc::new(Runtime {
+            timers: Default::default(),
+            timer_queue: Default::default(),
+            tasks: Default::default(),
+            poll_again: RefCell::new(Default::default()),
+        })
+    };
+}
+
+pub fn auto_yield() -> Yield {
+    Yield(unsafe { crate::ffi::yield_rt } != 0)
+}
 
 // Single threaded runtime
-struct Runtime {
+pub struct Runtime {
     timers: RefCell<BTreeMap<(Instant, usize), Waker>>,
     timer_queue: RefCell<VecDeque<TimerOp>>,
 
@@ -28,14 +41,15 @@ struct Runtime {
     poll_again: RefCell<VecDeque<usize>>,
 }
 
-pub struct JoinHandle<T> {
+pub struct JoinHandle<T: 'static> {
+    _phantom: PhantomData<T>,
     handle: Rc<TaskHandle>,
 }
 
+type DynFuture = Pin<Box<dyn Future<Output = Box<dyn Any + 'static>> + 'static>>;
 struct TaskHandle {
-    future: RefCell<Pin<Box<dyn Future<Output = Box<dyn Any + 'static>> + Unpin + 'static>>>,
-    last_poll: RefCell<Instant>,
-    result: RefCell<Option<Box<dyn Any>>>,
+    future: RefCell<DynFuture>,
+    result: RefCell<Option<Box<dyn Any + 'static>>>,
     join_waker: RefCell<Option<Waker>>,
 }
 
@@ -48,8 +62,10 @@ enum TimerOp {
     Remove(Instant, usize),
 }
 
+pub struct SleepHandle(Instant, usize);
+
 impl Runtime {
-    fn poll(&self) {
+    pub(crate) fn poll(&self) -> Duration {
         IN_RUNTIME.store(true, Ordering::Release);
 
         let mut wakers = Vec::<Waker>::new();
@@ -63,11 +79,18 @@ impl Runtime {
             }
         }
 
-        while !self.poll_again.borrow().is_empty() {
+        loop {
             let mut queue = self.poll_again.borrow_mut();
-            let next = queue.pop_front().unwrap();
+
+            let next = if let Some(next) = queue.pop_front() {
+                next
+            } else {
+                break;
+            };
+
             // release queue so other wakeups can run
             drop(queue);
+
 
             let task = self.tasks.borrow_mut().remove(&next).unwrap();
             let mut future = task.future.borrow_mut();
@@ -79,14 +102,59 @@ impl Runtime {
             let future = (*future).as_mut();
             match future.poll(&mut ctx) {
                 Poll::Ready(result) => {
-                    task.result.replace(Some(result));
-                    task.join_waker.borrow_mut().take().unwrap().wake();
+                    self.tasks.borrow_mut().remove(&next);
+
+                    // notify JoinHandle of result
+                    task.result.borrow_mut().replace(result);
+                    if let Some(waker) = task.join_waker.borrow_mut().take() {
+                        waker.wake();
+                    }
                 }
-                Poll::Pending => {}
+                Poll::Pending => {
+                    if unsafe { crate::ffi::yield_rt } != 0 {
+                        // yield from runtime
+                        break;
+                    }
+                },
             }
         }
 
         IN_RUNTIME.store(false, Ordering::Release);
+
+        return next_timer_wakeup.unwrap_or(Duration::from_secs(0));
+    }
+
+    pub fn spawn<R: 'static>(&self, future: impl Future<Output = R> + 'static) -> JoinHandle<R> {
+        let task = Box::pin(async move {
+            let result = future.await;
+            Box::new(result) as Box<dyn Any>
+        });
+
+        let mut id = TASK_ID.fetch_add(1, Ordering::Relaxed);
+        while self.tasks.borrow().contains_key(&id) {
+            id = TASK_ID.fetch_add(1, Ordering::Relaxed);
+        }
+
+        let task_handle = Rc::new(TaskHandle {
+            future: RefCell::new(task),
+            result: RefCell::new(None),
+            join_waker: RefCell::new(None),
+        });
+        let join_handle = JoinHandle {
+            _phantom: PhantomData,
+            handle: task_handle.clone(),
+        };
+
+        self.tasks.borrow_mut().insert(id, task_handle);
+
+        join_handle
+    }
+
+    pub fn schedule_sleep(&self, until: Instant, waker: Waker) -> SleepHandle {
+        let id = SLEEP_ID.fetch_add(1, Ordering::Relaxed);
+        let op = TimerOp::Insert(until, id, waker);
+        self.timer_queue.borrow_mut().push_back(op);
+        SleepHandle(until, id)
     }
 
     fn wake(&self) {
@@ -110,9 +178,10 @@ impl Runtime {
 
         let dur = if ready.is_empty() {
             self.timers
+                .borrow_mut()
                 .keys()
                 .next()
-                .map(|(when, )| when.saturating_duration_since(now))
+                .map(|(when, _)| when.saturating_duration_since(now))
         } else {
             None
         };
@@ -139,13 +208,38 @@ impl Runtime {
     }
 }
 
+impl<T: 'static> Future for JoinHandle<T> {
+    type Output = T;
+
+    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        if let Some(result) = self.handle.result.borrow_mut().take() {
+            // it's fine to unwrap here, since we know the type must be `T`
+            let t: Box<T> = result.downcast().unwrap();
+            Poll::Ready(*t)
+        } else {
+            self.handle.join_waker.borrow_mut().replace(cx.waker().clone());
+            Poll::Pending
+        }
+    }
+}
+
 impl Wake for TaskWaker {
     fn wake(self: Arc<Self>) {
-        self.wake_by_ref(&self)
+        self.wake_by_ref()
     }
 
     fn wake_by_ref(self: &Arc<Self>) {
-        RUNTIME.poll_again.borrow_mut().push_back(self.task_id);
-        RUNTIME.wake();
+        RUNTIME.with(|rt| {
+            rt.poll_again.borrow_mut().push_back(self.task_id);
+            rt.wake();
+        });
+    }
+}
+
+impl Drop for SleepHandle {
+    fn drop(&mut self) {
+        RUNTIME.with(|rt| {
+            rt.timer_queue.borrow_mut().push_back(TimerOp::Remove(self.0, self.1));
+        });
     }
 }
