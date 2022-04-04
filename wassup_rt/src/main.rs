@@ -14,9 +14,9 @@ use crate::wasi_api::WasiEnv;
 mod transformer;
 mod wasi_api;
 
-struct CombiResolver<'a, const N: usize>(pub [&'a (dyn Resolver + Sync + Send); N]);
+struct ComboResolver<'a, const N: usize>(pub [&'a (dyn Resolver + Sync + Send); N]);
 
-impl<'a, const N: usize> Resolver for CombiResolver<'a, N> {
+impl<'a, const N: usize> Resolver for ComboResolver<'a, N> {
     fn resolve(&self, index: u32, module: &str, field: &str) -> Option<Export> {
         for r in self.0 {
             if let x @ Some(_) = r.resolve(index, module, field) {
@@ -54,7 +54,7 @@ fn main() {
     };
     let wasi_imports = wasi_api::generate_imports(&store, WasiEnv { memory: Default::default() });
 
-    let imports = CombiResolver([&env_imports, &wasi_imports]);
+    let imports = ComboResolver([&env_imports, &wasi_imports]);
     stamper.stamp("mk-imports");
 
     let instance = Instance::new(&module, &imports).unwrap();
