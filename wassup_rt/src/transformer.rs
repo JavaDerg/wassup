@@ -1,11 +1,9 @@
-use wasmer::{FunctionMiddleware, MiddlewareError, MiddlewareReaderState, ModuleMiddleware};
 use wasmer::wasmparser::Operator;
+use wasmer::{FunctionMiddleware, MiddlewareError, MiddlewareReaderState, ModuleMiddleware};
 use wasmer_types::{LocalFunctionIndex, ModuleInfo};
 
 #[derive(Debug, loupe::MemoryUsage)]
-pub struct ModuleTransformer {
-    
-}
+pub struct ModuleTransformer {}
 
 #[derive(Debug, loupe::MemoryUsage)]
 pub struct FunctionTransformer {
@@ -19,18 +17,22 @@ impl Default for ModuleTransformer {
 }
 
 impl ModuleMiddleware for ModuleTransformer {
-    fn generate_function_middleware(&self, _lfi: LocalFunctionIndex) -> Box<dyn FunctionMiddleware> {
-        Box::new(FunctionTransformer {
-            fn_id: 0,
-        })
+    fn generate_function_middleware(
+        &self,
+        _lfi: LocalFunctionIndex,
+    ) -> Box<dyn FunctionMiddleware> {
+        Box::new(FunctionTransformer { fn_id: 0 })
     }
 
-    fn transform_module_info(&self, _info: &mut ModuleInfo) {
-    }
+    fn transform_module_info(&self, _info: &mut ModuleInfo) {}
 }
 
 impl FunctionMiddleware for FunctionTransformer {
-    fn feed<'a>(&mut self, operator: Operator<'a>, state: &mut MiddlewareReaderState<'a>) -> Result<(), MiddlewareError> {
+    fn feed<'a>(
+        &mut self,
+        operator: Operator<'a>,
+        state: &mut MiddlewareReaderState<'a>,
+    ) -> Result<(), MiddlewareError> {
         // match &operator {
         //     Operator::Call { .. } => {}
         //     Operator::CallIndirect { .. } => {}

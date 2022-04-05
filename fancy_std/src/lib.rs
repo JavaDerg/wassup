@@ -1,14 +1,14 @@
 mod ffi;
 mod runtime;
-mod r#yield;
 pub mod time;
+mod r#yield;
 
-use std::future::Future;
 use runtime::RUNTIME;
+use std::future::Future;
 
 pub use r#yield::*;
 pub use runtime::JoinHandle;
-pub use tracing::{self, trace, debug, info, warn, error};
+pub use tracing::{self, debug, error, info, trace, warn};
 
 pub use fancy_std_macro::async_main as main;
 

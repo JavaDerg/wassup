@@ -1,4 +1,7 @@
-use libc::{clock_getres, clock_gettime, CLOCK_MONOTONIC, CLOCK_PROCESS_CPUTIME_ID, CLOCK_REALTIME, CLOCK_THREAD_CPUTIME_ID, timespec};
+use libc::{
+    clock_getres, clock_gettime, timespec, CLOCK_MONOTONIC, CLOCK_PROCESS_CPUTIME_ID,
+    CLOCK_REALTIME, CLOCK_THREAD_CPUTIME_ID,
+};
 use wasmer::WasmCell;
 
 ///! this file is partially taken from https://github.com/wasmerio/wasmer/blob/3604debecc753c1a13701559035d75b30b77d912/lib/wasi/src/syscalls/unix/mod.rs and under MIT licence
@@ -56,7 +59,10 @@ pub fn platform_clock_time_get(
             tv_sec: 0,
             tv_nsec: 0,
         };
-        (clock_gettime(unix_clock_id, &mut timespec_out), timespec_out)
+        (
+            clock_gettime(unix_clock_id, &mut timespec_out),
+            timespec_out,
+        )
     };
 
     let t_out = (timespec_out.tv_sec * 1_000_000_000).wrapping_add(timespec_out.tv_nsec);

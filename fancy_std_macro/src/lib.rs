@@ -3,10 +3,7 @@ use quote::quote;
 use syn::parse_macro_input;
 
 #[proc_macro_attribute]
-pub fn async_main(
-    _args: TokenStream,
-    input: TokenStream
-) -> TokenStream {
+pub fn async_main(_args: TokenStream, input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as syn::ItemFn);
     let body = input.block;
 

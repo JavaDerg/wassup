@@ -1,13 +1,13 @@
-use wasmer::{ImportObject, imports, Store};
 use wasmer::Function;
+use wasmer::{imports, ImportObject, Store};
 
-mod syscalls;
 mod env;
+mod syscalls;
 mod unix;
 
 pub use env::WasiEnv;
 
-pub fn generate_imports(store: &Store, env: WasiEnv) -> ImportObject{
+pub fn generate_imports(store: &Store, env: WasiEnv) -> ImportObject {
     imports! {
         "wasi_snapshot_preview1" => {
             "sched_yield" => Function::new_native_with_env(store, env.clone(), syscalls::sched_yield),

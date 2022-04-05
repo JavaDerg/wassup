@@ -1,15 +1,18 @@
 extern crate core;
 
+use crate::transformer::ModuleTransformer;
+use crate::wasi_api::WasiEnv;
+use criterion::{black_box, Criterion};
 use std::cell::{Cell, RefCell};
 use std::fmt::Display;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
-use criterion::{black_box, Criterion};
-use wasmer::{CompilerConfig, Export, Function, Global, imports, Instance, Module, NativeFunc, Resolver, Store, Value, wat2wasm};
-use wasmer_compiler_llvm::{LLVM, LLVMOptLevel};
+use wasmer::{
+    imports, wat2wasm, CompilerConfig, Export, Function, Global, Instance, Module, NativeFunc,
+    Resolver, Store, Value,
+};
+use wasmer_compiler_llvm::{LLVMOptLevel, LLVM};
 use wasmer_engine_universal::Universal;
-use crate::transformer::ModuleTransformer;
-use crate::wasi_api::WasiEnv;
 
 mod transformer;
 mod wasi_api;
@@ -31,18 +34,18 @@ fn main() {
     let mut stamper = Stamper::now();
 
     let wasm = std::fs::read("target/wasm32-wasi/debug/test_bin.wasm").unwrap();
-    stamper.stamp( "wasm loaded");
+    stamper.stamp("wasm loaded");
 
     let mut compiler = LLVM::default();
     compiler.opt_level(LLVMOptLevel::Aggressive);
     compiler.push_middleware(Arc::new(ModuleTransformer::default()));
-    stamper.stamp( "mk-compiler");
+    stamper.stamp("mk-compiler");
 
     let store = Store::new(&Universal::new(compiler).engine());
-    stamper.stamp( "mk-store");
+    stamper.stamp("mk-store");
 
     let module = Module::new(&store, wasm).unwrap();
-    stamper.stamp( "compile module");
+    stamper.stamp("compile module");
 
     let env_imports = imports! {
         "env" => {
@@ -55,7 +58,12 @@ fn main() {
             }),
         }
     };
-    let wasi_imports = wasi_api::generate_imports(&store, WasiEnv { memory: Default::default() });
+    let wasi_imports = wasi_api::generate_imports(
+        &store,
+        WasiEnv {
+            memory: Default::default(),
+        },
+    );
 
     let imports = ComboResolver([&env_imports, &wasi_imports]);
     stamper.stamp("mk-imports");
@@ -63,8 +71,14 @@ fn main() {
     let instance = Instance::new(&module, &imports).unwrap();
     stamper.stamp("mk-instance");
 
-    let start = instance.exports.get_native_function::<(), ()>("_start").expect("_start must be present");
-    let poll = instance.exports.get_native_function::<(), u64>("poll_runtime").expect("poll_runtime must be present");
+    let start = instance
+        .exports
+        .get_native_function::<(), ()>("_start")
+        .expect("_start must be present");
+    let poll = instance
+        .exports
+        .get_native_function::<(), u64>("poll_runtime")
+        .expect("poll_runtime must be present");
 
     start.call();
 

@@ -1,3 +1,4 @@
+use crate::{ffi, shutdown_runtime, Yield};
 use std::any::Any;
 use std::borrow::Borrow;
 use std::cell::RefCell;
@@ -7,11 +8,10 @@ use std::marker::PhantomData;
 use std::mem;
 use std::pin::Pin;
 use std::rc::{Rc, Weak};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::{Duration, Instant};
-use crate::{ffi, shutdown_runtime, Yield};
 
 static IN_RUNTIME: AtomicBool = AtomicBool::new(false);
 static TASK_ID: AtomicUsize = AtomicUsize::new(0);
@@ -65,12 +65,9 @@ enum TimerOp {
 pub struct SleepHandle(Instant, usize);
 
 impl Runtime {
-    pub(crate) fn poll(&self) -> Duration {
-        log(0x20);
-
+    /// returns a duration in microseconds till the next poll is required
+    pub(crate) fn poll(&self) -> u64 {
         IN_RUNTIME.store(true, Ordering::Release);
-
-        log(0x21);
 
         let mut wakers = Vec::<Waker>::new();
 
@@ -83,8 +80,6 @@ impl Runtime {
             }
         }
 
-        log(0x10);
-
         loop {
             let mut queue = self.poll_again.borrow_mut();
 
@@ -96,8 +91,6 @@ impl Runtime {
 
             // release queue so other wakeups can run
             drop(queue);
-
-            log(0x11);
 
             let task = if let Some(task) = self.tasks.borrow_mut().get(&next).cloned() {
                 task
@@ -112,15 +105,11 @@ impl Runtime {
             let waker = Waker::from(task_waker);
             let mut ctx = Context::from_waker(&waker);
 
-            log(0x12);
-
             let future = (*future).as_mut();
 
             // FIXME: Add catch unwind
             match future.poll(&mut ctx) {
                 Poll::Ready(result) => {
-                    log(0x13);
-
                     self.tasks.borrow_mut().remove(&next);
 
                     // notify JoinHandle of result
@@ -130,16 +119,12 @@ impl Runtime {
                     }
                 }
                 Poll::Pending => {
-                    log(0xF0);
                     if unsafe { crate::ffi::yield_rt } != 0 {
-                        log(0xF1);
                         // yield from runtime
                         break;
                     }
-                    log(0xF2);
-                },
+                }
             }
-            log(0x14);
         }
 
         IN_RUNTIME.store(false, Ordering::Release);
@@ -148,11 +133,12 @@ impl Runtime {
             self.shutdown();
         }
 
-        return next_timer_wakeup.unwrap_or(Duration::from_secs(if self.timer_queue.borrow().is_empty() {
-            u64::MAX
-        } else {
-            u64::MIN
-        }));
+        let poll_again =
+            !self.timer_queue.borrow().is_empty() || !self.poll_again.borrow().is_empty();
+
+        next_timer_wakeup
+            .map(|dur| dur.as_micros() as u64)
+            .unwrap_or(if poll_again { 0 } else { u64::MAX })
     }
 
     pub fn shutdown(&self) -> ! {
@@ -201,8 +187,9 @@ impl Runtime {
         if IN_RUNTIME.load(Ordering::Relaxed) {
             return;
         }
-        // TODO: Notify host to poll again
-        todo!()
+        unsafe {
+            ffi::wake();
+        }
     }
 
     // This code is partially taken from https://github.com/smol-rs/async-io/blob/master/src/reactor.rs under the MIT licence
@@ -213,7 +200,10 @@ impl Runtime {
 
         // Split timers into ready and pending timers
         // We split exactly after now, so now is also considered ready
-        let pending = self.timers.borrow_mut().split_off(&(now + Duration::from_nanos(1), 0));
+        let pending = self
+            .timers
+            .borrow_mut()
+            .split_off(&(now + Duration::from_nanos(1), 0));
         let ready = mem::replace(&mut *self.timers.borrow_mut(), pending);
 
         let dur = if ready.is_empty() {
@@ -283,7 +273,9 @@ impl Wake for TaskWaker {
 impl Drop for SleepHandle {
     fn drop(&mut self) {
         RUNTIME.with(|rt| {
-            rt.timer_queue.borrow_mut().push_back(TimerOp::Remove(self.0, self.1));
+            rt.timer_queue
+                .borrow_mut()
+                .push_back(TimerOp::Remove(self.0, self.1));
         });
     }
 }
