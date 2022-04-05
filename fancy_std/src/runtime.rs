@@ -66,7 +66,11 @@ pub struct SleepHandle(Instant, usize);
 
 impl Runtime {
     pub(crate) fn poll(&self) -> Duration {
+        log(0x20);
+
         IN_RUNTIME.store(true, Ordering::Release);
+
+        log(0x21);
 
         let mut wakers = Vec::<Waker>::new();
 
@@ -78,6 +82,8 @@ impl Runtime {
                 // FIXME: Do clean exit
             }
         }
+
+        log(0x10);
 
         loop {
             let mut queue = self.poll_again.borrow_mut();
@@ -91,6 +97,7 @@ impl Runtime {
             // release queue so other wakeups can run
             drop(queue);
 
+            log(0x11);
 
             let task = self.tasks.borrow_mut().remove(&next).unwrap();
             let mut future = task.future.borrow_mut();
@@ -99,9 +106,15 @@ impl Runtime {
             let waker = Waker::from(task_waker);
             let mut ctx = Context::from_waker(&waker);
 
+            log(0x12);
+
             let future = (*future).as_mut();
+
+            // FIXME: Add catch unwind
             match future.poll(&mut ctx) {
                 Poll::Ready(result) => {
+                    log(0x13);
+
                     self.tasks.borrow_mut().remove(&next);
 
                     // notify JoinHandle of result
@@ -111,12 +124,16 @@ impl Runtime {
                     }
                 }
                 Poll::Pending => {
+                    log(0xF0);
                     if unsafe { crate::ffi::yield_rt } != 0 {
+                        log(0xF1);
                         // yield from runtime
                         break;
                     }
+                    log(0xF2);
                 },
             }
+            log(0x14);
         }
 
         IN_RUNTIME.store(false, Ordering::Release);

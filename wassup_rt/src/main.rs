@@ -48,7 +48,7 @@ fn main() {
         "env" => {
             "yield_rt" => Global::new(&store, Value::I32(0)),
             "wake" => Function::new_native(&store, || println!("wakeup lmao")),
-            "log_n" => Function::new_native(&store, |n: u64| println!("{n}")),
+            "log_n" => Function::new_native(&store, |n: u64| println!("{n:X}")),
             "shutdown_rt" => Function::new_native(&store, || std::process::exit(0)),
         }
     };

@@ -1,7 +1,9 @@
 use std::future::Future;
+use std::io::Write;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
+use crate::log;
 use crate::runtime::{RUNTIME, SleepHandle};
 
 pub struct Sleep {
@@ -24,14 +26,17 @@ impl Future for Sleep {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if self.until.elapsed() > std::time::Duration::from_secs(0) {
-            Poll::Ready(())
-        } else {
+        log(0xFF0001);
+        if self.until <= Instant::now() {
+            return Poll::Ready(());
+        } else if self.handle.is_none() {
+            log(0xFF0010);
             let handle = RUNTIME.with(|rt| {
                rt.schedule_sleep(self.until, cx.waker().clone())
             });
+            log(0xFF00FF);
             self.handle.replace(handle);
-            Poll::Pending
         }
+        Poll::Pending
     }
 }
