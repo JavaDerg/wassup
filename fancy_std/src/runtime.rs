@@ -43,7 +43,7 @@ pub struct Runtime {
 
 pub struct JoinHandle<T: 'static> {
     _phantom: PhantomData<T>,
-    handle: Weak<TaskHandle>,
+    handle: Rc<TaskHandle>,
 }
 
 type DynFuture = Pin<Box<dyn Future<Output = Box<dyn Any + 'static>> + 'static>>;
@@ -167,7 +167,7 @@ impl Runtime {
         });
         let join_handle = JoinHandle {
             _phantom: PhantomData,
-            handle: Rc::downgrade(&task_handle),
+            handle: task_handle.clone(),
         };
 
         self.tasks.borrow_mut().insert(id, task_handle);
@@ -242,17 +242,13 @@ impl<T: 'static> Future for JoinHandle<T> {
     type Output = T;
 
     fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        if let Some(handle) = self.handle.upgrade() {
-            if let Some(result) = handle.result.borrow_mut().take() {
-                // it's fine to unwrap here, since we know the type must be `T`
-                let t: Box<T> = result.downcast().unwrap();
-                Poll::Ready(*t)
-            } else {
-                handle.join_waker.borrow_mut().replace(cx.waker().clone());
-                Poll::Pending
-            }
+        if let Some(result) = self.handle.result.borrow_mut().take() {
+            // it's fine to unwrap here, since we know the type must be `T`
+            let t: Box<T> = result.downcast().unwrap();
+            Poll::Ready(*t)
         } else {
-            panic!("Task has been dropped");
+            self.handle.join_waker.borrow_mut().replace(cx.waker().clone());
+            Poll::Pending
         }
     }
 }
