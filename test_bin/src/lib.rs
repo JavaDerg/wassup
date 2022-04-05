@@ -7,11 +7,11 @@ use fancy_std::{log, yield_now};
 #[fancy_std::main]
 pub async fn main() {
     log(UNIX_EPOCH.elapsed().unwrap().as_secs());
-    log(0xDEAD0001);
+    log(0xDEAD00);
     for i in 0.. {
         log(0xDEAD0000 + i);
-        println!("{}", i);
-        sleep_for(Duration::from_secs(1)).await
+        // println!("{}", i);
+        sleep_for(Duration::from_millis(250)).await
     }
     log(0xDEAD00FF);
 }
