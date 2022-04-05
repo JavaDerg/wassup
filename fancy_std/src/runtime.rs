@@ -75,7 +75,7 @@ impl Runtime {
         for waker in wakers {
             if let Err(_err) = std::panic::catch_unwind(|| waker.wake()) {
                 // TODO: Notify of panic
-                // FIXME: Do clean exit
+                log(0xBA21C111);
                 self.shutdown();
             }
         }

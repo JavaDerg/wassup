@@ -185,7 +185,7 @@ pub fn fd_write(
 #[derive(Copy, Clone, Debug)]
 pub struct Ciovec {
     ptr: WasmPtr<u8, Array>,
-    len: wasi::Size,
+    len: u32,
 }
 
 unsafe impl ValueType for Ciovec {}
