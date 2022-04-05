@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::{Duration, Instant};
-use crate::{log, Yield};
+use crate::{ffi, shutdown_runtime, Yield};
 
 static IN_RUNTIME: AtomicBool = AtomicBool::new(false);
 static TASK_ID: AtomicUsize = AtomicUsize::new(0);
@@ -79,7 +79,7 @@ impl Runtime {
         for waker in wakers {
             if let Err(_err) = std::panic::catch_unwind(|| waker.wake()) {
                 // TODO: Notify of panic
-                // FIXME: Do clean exit
+                self.shutdown();
             }
         }
 
@@ -99,7 +99,13 @@ impl Runtime {
 
             log(0x11);
 
-            let task = self.tasks.borrow_mut().remove(&next).unwrap();
+            let task = if let Some(task) = self.tasks.borrow_mut().get(&next).cloned() {
+                task
+            } else {
+                // Task seems to be missing, possible race condition; just ignore it
+                continue;
+            };
+
             let mut future = task.future.borrow_mut();
 
             let task_waker = Arc::new(TaskWaker { task_id: next });
@@ -139,30 +145,34 @@ impl Runtime {
         IN_RUNTIME.store(false, Ordering::Release);
 
         if self.tasks.borrow().is_empty() {
-            unsafe { crate::ffi::shutdown_rt(); }
+            self.shutdown();
         }
 
-        return next_timer_wakeup.unwrap_or(Duration::from_secs(u64::MAX));
+        return next_timer_wakeup.unwrap_or(Duration::from_secs(if self.timer_queue.borrow().is_empty() {
+            u64::MAX
+        } else {
+            u64::MIN
+        }));
     }
 
-    pub fn shutdown(&self) {
+    pub fn shutdown(&self) -> ! {
         // drop all tasks for clean exit
         for _ in self.tasks.borrow_mut().drain() {}
+        unsafe {
+            ffi::shutdown_rt();
+        }
     }
 
     pub fn spawn<R: 'static>(&self, future: impl Future<Output = R> + 'static) -> JoinHandle<R> {
-        log(2);
         let task = Box::pin(async move {
             let result = future.await;
             Box::new(result) as Box<dyn Any>
         });
-        log(3);
 
         let mut id = TASK_ID.fetch_add(1, Ordering::Relaxed);
         while self.tasks.borrow().contains_key(&id) {
             id = TASK_ID.fetch_add(1, Ordering::Relaxed);
         }
-        log(4);
 
         let task_handle = Rc::new(TaskHandle {
             future: RefCell::new(task),
@@ -176,7 +186,6 @@ impl Runtime {
 
         self.tasks.borrow_mut().insert(id, task_handle);
         self.poll_again.borrow_mut().push_back(id);
-        log(5);
 
         join_handle
     }

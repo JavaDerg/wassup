@@ -141,7 +141,10 @@ pub fn fd_write(
     iovs_len: u32,
     nwritten: WasmPtr<u32>,
 ) -> Errno {
+<<<<<<< HEAD
     // println!("{}", fd);
+=======
+>>>>>>> 3cced1041629a04bfa5658638d0c4e1e8dd21143
     let mut stream: Box<dyn Write> = match fd {
         1 => Box::new(std::io::stdout()),
         2 => Box::new(std::io::stderr()),
@@ -155,7 +158,6 @@ pub fn fd_write(
         let Ciovec {
             ptr, len
         }: Ciovec = iov.get();
-        // println!("{} -> {}", ptr.offset(), len as u32);
 
         let end = ptr.offset() + len as u32;
 
@@ -170,7 +172,6 @@ pub fn fd_write(
         let slice_u8: &[u8] = unsafe {
             std::mem::transmute(slice)
         };
-        // println!("{:?}", slice_u8);
 
         if let Err(_) = stream.write_all(slice_u8) {
             return ERRNO_IO;
@@ -188,7 +189,7 @@ pub fn fd_write(
 #[derive(Copy, Clone, Debug)]
 pub struct Ciovec {
     ptr: WasmPtr<u8, Array>,
-    len: wasi::Size,
+    len: u32,
 }
 
 unsafe impl ValueType for Ciovec {}

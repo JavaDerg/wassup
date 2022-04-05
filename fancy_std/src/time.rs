@@ -26,11 +26,9 @@ impl Future for Sleep {
     type Output = ();
 
     fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        log(0xFF0001);
         if self.until <= Instant::now() {
-            return Poll::Ready(());
-        } else if self.handle.is_none() {
-            log(0xFF0010);
+            Poll::Ready(())
+        } else {
             let handle = RUNTIME.with(|rt| {
                rt.schedule_sleep(self.until, cx.waker().clone())
             });

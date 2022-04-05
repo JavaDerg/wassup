@@ -30,7 +30,7 @@ impl<'a, const N: usize> Resolver for ComboResolver<'a, N> {
 fn main() {
     let mut stamper = Stamper::now();
 
-    let wasm = std::fs::read("target/wasm32-wasi/release/test_bin.wasm").unwrap();
+    let wasm = std::fs::read("target/wasm32-wasi/debug/test_bin.wasm").unwrap();
     stamper.stamp( "wasm loaded");
 
     let mut compiler = LLVM::default();
@@ -48,8 +48,11 @@ fn main() {
         "env" => {
             "yield_rt" => Global::new(&store, Value::I32(0)),
             "wake" => Function::new_native(&store, || println!("wakeup lmao")),
-            "log_n" => Function::new_native(&store, |n: u64| println!("{n:X}")),
-            "shutdown_rt" => Function::new_native(&store, || std::process::exit(0)),
+            "log_n" => Function::new_native(&store, |_: u64| ()),
+            "shutdown_rt" => Function::new_native(&store, || {
+                println!("exit trigger");
+                std::process::exit(0)
+            }),
         }
     };
     let wasi_imports = wasi_api::generate_imports(&store, WasiEnv { memory: Default::default() });
@@ -67,7 +70,6 @@ fn main() {
 
     loop {
         let sleep_time = poll.call().unwrap();
-        //eprintln!("sleep_time: {}µs", sleep_time);
 
         std::thread::sleep(Duration::from_micros(sleep_time))
     }
