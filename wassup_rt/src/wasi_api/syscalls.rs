@@ -141,10 +141,6 @@ pub fn fd_write(
     iovs_len: u32,
     nwritten: WasmPtr<u32>,
 ) -> Errno {
-<<<<<<< HEAD
-    // println!("{}", fd);
-=======
->>>>>>> 3cced1041629a04bfa5658638d0c4e1e8dd21143
     let mut stream: Box<dyn Write> = match fd {
         1 => Box::new(std::io::stdout()),
         2 => Box::new(std::io::stderr()),
