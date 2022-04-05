@@ -11,7 +11,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::task::{Context, Poll, Wake, Waker};
 use std::time::{Duration, Instant};
-use crate::{ffi, log, shutdown_runtime, Yield};
+use crate::{ffi, shutdown_runtime, Yield};
 
 static IN_RUNTIME: AtomicBool = AtomicBool::new(false);
 static TASK_ID: AtomicUsize = AtomicUsize::new(0);
@@ -75,7 +75,6 @@ impl Runtime {
         for waker in wakers {
             if let Err(_err) = std::panic::catch_unwind(|| waker.wake()) {
                 // TODO: Notify of panic
-                log(0xBA21C111);
                 self.shutdown();
             }
         }
@@ -109,7 +108,6 @@ impl Runtime {
             let future = (*future).as_mut();
             match future.poll(&mut ctx) {
                 Poll::Ready(result) => {
-                    log(0xDA0001);
                     self.tasks.borrow_mut().remove(&next);
 
                     // notify JoinHandle of result
@@ -119,7 +117,6 @@ impl Runtime {
                     }
                 }
                 Poll::Pending => {
-                    log(0xDA0002);
                     if unsafe { crate::ffi::yield_rt } != 0 {
                         // yield from runtime
                         break;
@@ -150,18 +147,15 @@ impl Runtime {
     }
 
     pub fn spawn<R: 'static>(&self, future: impl Future<Output = R> + 'static) -> JoinHandle<R> {
-        log(2);
         let task = Box::pin(async move {
             let result = future.await;
             Box::new(result) as Box<dyn Any>
         });
-        log(3);
 
         let mut id = TASK_ID.fetch_add(1, Ordering::Relaxed);
         while self.tasks.borrow().contains_key(&id) {
             id = TASK_ID.fetch_add(1, Ordering::Relaxed);
         }
-        log(4);
 
         let task_handle = Rc::new(TaskHandle {
             future: RefCell::new(task),
@@ -175,7 +169,6 @@ impl Runtime {
 
         self.tasks.borrow_mut().insert(id, task_handle);
         self.poll_again.borrow_mut().push_back(id);
-        log(5);
 
         join_handle
     }

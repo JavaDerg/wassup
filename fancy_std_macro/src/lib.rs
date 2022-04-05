@@ -27,6 +27,7 @@ pub fn async_main(
             #[no_mangle]
             pub extern "C" fn _start() {
                 let _ = ::fancy_std::spawn(async {
+                    ::fancy_std::startup_runtime();
                     async {
                         #body
                     }.await;

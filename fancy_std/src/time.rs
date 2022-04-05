@@ -2,7 +2,6 @@ use std::future::Future;
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
-use crate::log;
 use crate::runtime::{RUNTIME, SleepHandle};
 
 pub struct Sleep {
@@ -28,11 +27,9 @@ impl Future for Sleep {
         if self.until <= Instant::now() {
             Poll::Ready(())
         } else {
-            log(0xFF01);
             let handle = RUNTIME.with(|rt| {
                rt.schedule_sleep(self.until, cx.waker().clone())
             });
-            log(0xFFFF);
             self.handle.replace(handle);
             Poll::Pending
         }
