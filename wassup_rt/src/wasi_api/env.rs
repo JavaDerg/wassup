@@ -1,4 +1,4 @@
-use wasmer::{HostEnvInitError, Instance, LazyInit, Memory, WasmerEnv};
+use wasmer::{LazyInit, Memory, WasmerEnv};
 
 #[derive(Clone, WasmerEnv)]
 pub struct WasiEnv {

@@ -1,6 +1,6 @@
 use crate::runtime::{SleepHandle, RUNTIME};
 use std::future::Future;
-use std::io::Write;
+
 use std::pin::Pin;
 use std::task::{Context, Poll};
 use std::time::{Duration, Instant};

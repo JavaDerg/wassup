@@ -362,24 +362,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "fancy_std"
-version = "0.1.0"
-dependencies = [
- "fancy_std_macro",
- "tracing",
- "tracing-subscriber",
- "wasi",
-]
-
-[[package]]
-name = "fancy_std_macro"
-version = "0.1.0"
-dependencies = [
- "quote",
- "syn",
-]
-
-[[package]]
 name = "fastrand"
 version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1180,7 +1162,7 @@ dependencies = [
 name = "test_bin"
 version = "0.1.0"
 dependencies = [
- "fancy_std",
+ "wassup_std",
 ]
 
 [[package]]
@@ -1608,6 +1590,24 @@ dependencies = [
  "wasmer-compiler-llvm",
  "wasmer-engine-universal",
  "wasmer-types",
+]
+
+[[package]]
+name = "wassup_std"
+version = "0.1.0"
+dependencies = [
+ "tracing",
+ "tracing-subscriber",
+ "wasi",
+ "wassup_std_macros",
+]
+
+[[package]]
+name = "wassup_std_macros"
+version = "0.1.0"
+dependencies = [
+ "quote",
+ "syn",
 ]
 
 [[package]]

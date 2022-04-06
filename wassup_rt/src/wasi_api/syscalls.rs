@@ -1,10 +1,10 @@
 use crate::wasi_api::env::WasiEnv;
 use crate::wasi_api::unix::{platform_clock_res_get, platform_clock_time_get};
-use libc::EXIT_SUCCESS;
+
 use rand::RngCore;
 use std::io::Write;
-use wasi::{Errno, Exitcode, ERRNO_ADDRNOTAVAIL, ERRNO_BADF, ERRNO_INVAL, ERRNO_IO, ERRNO_SUCCESS};
-use wasmer::CompileError::Wasm;
+use wasi::{Errno, ERRNO_ADDRNOTAVAIL, ERRNO_BADF, ERRNO_INVAL, ERRNO_IO, ERRNO_SUCCESS};
+
 use wasmer::{Array, WasmError, WasmPtr};
 use wasmer_types::ValueType;
 
@@ -45,7 +45,7 @@ pub fn args_sizes_get(env: &WasiEnv, argc: WasmPtr<u32>, argv_buf_size: WasmPtr<
     ERRNO_SUCCESS
 }
 
-pub fn sched_yield(env: &WasiEnv) -> Errno {
+pub fn sched_yield(_env: &WasiEnv) -> Errno {
     ERRNO_SUCCESS
 }
 
@@ -95,9 +95,9 @@ pub fn random_get(env: &WasiEnv, buf: WasmPtr<u8, Array>, buf_len: u32) -> Errno
 }
 
 pub fn environ_get(
-    env: &WasiEnv,
-    environ: WasmPtr<WasmPtr<u8, Array>, Array>,
-    environ_buf: WasmPtr<u8, Array>,
+    _env: &WasiEnv,
+    _environ: WasmPtr<WasmPtr<u8, Array>, Array>,
+    _environ_buf: WasmPtr<u8, Array>,
 ) -> Errno {
     ERRNO_SUCCESS
 }

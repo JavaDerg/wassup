@@ -17,18 +17,18 @@ pub fn async_main(_args: TokenStream, input: TokenStream) -> TokenStream {
         || !sig.generics.params.is_empty()
         || sig.constness.is_some() {
         quote! {
-            compiler_error!("the function used with `#[fancy_std::main]` must be `async fn main() -> ()`");
+            compiler_error!("the function used with `#[wassup_std::main]` must be `async fn main() -> ()`");
         }
     } else {
         quote! {
             #[no_mangle]
             pub extern "C" fn _start() {
-                let _ = ::fancy_std::spawn(async {
-                    ::fancy_std::startup_runtime();
+                let _ = ::wassup_std::spawn(async {
+                    ::wassup_std::startup_runtime();
                     async {
                         #body
                     }.await;
-                    ::fancy_std::shutdown_runtime();
+                    ::wassup_std::shutdown_runtime();
                 });
             }
         }

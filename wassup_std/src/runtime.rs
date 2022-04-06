@@ -1,13 +1,12 @@
-use crate::{ffi, shutdown_runtime, Yield};
+use crate::{ffi, Yield};
 use std::any::Any;
-use std::borrow::Borrow;
 use std::cell::RefCell;
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::future::Future;
 use std::marker::PhantomData;
 use std::mem;
 use std::pin::Pin;
-use std::rc::{Rc, Weak};
+use std::rc::Rc;
 use std::sync::atomic::{AtomicBool, AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::task::{Context, Poll, Wake, Waker};

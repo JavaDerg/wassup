@@ -1,10 +1,10 @@
 [package]
-name = "fancy_std"
+name = "wassup_std"
 version = "0.1.0"
 edition = "2021"
 
 [dependencies]
 wasi = "0.10"
-fancy_std_macro = { path = "../fancy_std_macro" }
+wassup_std_macros = { path = "../wassup_std_macros" }
 tracing = "0.1.32"
 tracing-subscriber = "0.3.10"

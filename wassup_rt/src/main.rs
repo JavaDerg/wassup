@@ -2,13 +2,13 @@ extern crate core;
 
 use crate::transformer::ModuleTransformer;
 use crate::wasi_api::WasiEnv;
-use criterion::{black_box, Criterion};
-use std::cell::{Cell, RefCell};
+
+
 use std::fmt::Display;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use wasmer::{
-    imports, wat2wasm, CompilerConfig, Export, Function, Global, Instance, Module, NativeFunc,
+    imports, CompilerConfig, Export, Function, Global, Instance, Module,
     Resolver, Store, Value,
 };
 use wasmer_compiler_llvm::{LLVMOptLevel, LLVM};
@@ -33,7 +33,7 @@ impl<'a, const N: usize> Resolver for ComboResolver<'a, N> {
 fn main() {
     let mut stamper = Stamper::now();
 
-    let wasm = std::fs::read("target/wasm32-wasi/debug/test_bin.wasm").unwrap();
+    let wasm = std::fs::read("target/wasm32-wasi/release/test_bin.wasm").unwrap();
     stamper.stamp("wasm loaded");
 
     let mut compiler = LLVM::default();
@@ -80,7 +80,7 @@ fn main() {
         .get_native_function::<(), u64>("poll_runtime")
         .expect("poll_runtime must be present");
 
-    start.call();
+    start.call().unwrap();
 
     loop {
         let sleep_time = poll.call().unwrap();

@@ -7,4 +7,4 @@ edition = "2021"
 crate-type = ["cdylib"]
 
 [dependencies]
-fancy_std = { path = "../fancy_std" }
+wassup_std = { path = "../wassup_std" }

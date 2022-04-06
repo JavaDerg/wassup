@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "wassup_rt",
-    "fancy_std",
-    "fancy_std_macro",
+    "wassup_std",
+    "wassup_std_macros",
     "test_bin",
 ]
