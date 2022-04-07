@@ -2,6 +2,7 @@ mod ffi;
 mod runtime;
 pub mod time;
 mod r#yield;
+mod ipc;
 
 use runtime::RUNTIME;
 use std::future::Future;

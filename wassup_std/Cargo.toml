@@ -8,3 +8,4 @@ wasi = "0.10"
 wassup_std_macros = { path = "../wassup_std_macros" }
 tracing = "0.1.32"
 tracing-subscriber = "0.3.10"
+bytes = "1.1.0"
