@@ -1,7 +1,7 @@
 extern crate core;
 
 use crate::transformer::ModuleTransformer;
-use crate::wasi_api::WasiEnv;
+use crate::wasi_api::{State, WasiEnv};
 
 
 use std::fmt::Display;
@@ -62,6 +62,7 @@ fn main() {
         &store,
         WasiEnv {
             memory: Default::default(),
+            state: Arc::new(State::new())
         },
     );
 

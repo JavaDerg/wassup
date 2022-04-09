@@ -11,7 +11,7 @@ use std::time::{Duration, Instant};
 use bytes::{Bytes, BytesMut};
 use wasi::ERRNO_SUCCESS;
 use crate::ffi;
-use crate::ffi::{IpcMakeChannelResult, IpcSegment};
+use crate::ffi::IpcMakeChannelResult;
 
 type RefMap<K, V> = RefCell<HashMap<K, V>>;
 type SharedIpcReceiver = Rc<RefCell<IpcReceiver>>;
@@ -39,7 +39,7 @@ struct Recv(Rc<RefCell<IpcReceiver>>);
 impl Ipc {
     pub fn new() -> Self {
         let IpcMakeChannelResult {
-            id, size, err
+            id, err
         } = unsafe { ffi::ipc_make_channel() };
         if err != wasi::ERRNO_SUCCESS {
             panic!("ipc_make_channel failed: {} ({}): {}", wasi::errno_name(err), err, wasi::errno_docs(err));
@@ -48,7 +48,7 @@ impl Ipc {
         let receiver = Rc::new(
             RefCell::new(
                 IpcReceiver {
-                    buffer: VecDeque::with_capacity(size as usize),
+                    buffer: VecDeque::with_capacity(16),
                     waker: None,
                     flag: Rc::new(Default::default()),
                     dropped: true,

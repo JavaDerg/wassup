@@ -24,15 +24,8 @@ extern "C" {
 }
 
 #[repr(C)]
-pub struct IpcSegment {
-    pub offset: usize,
-    pub len: usize,
-}
-
-#[repr(C)]
 pub struct IpcMakeChannelResult {
     pub id: u32,
-    pub size: u32,
     pub err: Errno,
 }
 

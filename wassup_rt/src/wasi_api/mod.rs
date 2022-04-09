@@ -4,8 +4,11 @@ use wasmer::{imports, ImportObject, Store};
 mod env;
 mod syscalls;
 mod unix;
+mod state;
+mod ipc;
 
 pub use env::WasiEnv;
+pub use state::State;
 
 pub fn generate_imports(store: &Store, env: WasiEnv) -> ImportObject {
     imports! {

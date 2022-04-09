@@ -28,6 +28,15 @@ macro_rules! deref_array (
     };
 );
 
+#[repr(C)]
+#[derive(Copy, Clone, Debug)]
+pub struct Ciovec {
+    ptr: WasmPtr<u8, Array>,
+    len: u32,
+}
+
+unsafe impl ValueType for Ciovec {}
+
 pub fn args_get(
     _env: &WasiEnv,
     _argv: WasmPtr<WasmPtr<u8, Array>, Array>,
@@ -161,12 +170,3 @@ pub fn fd_write(
 
     ERRNO_SUCCESS
 }
-
-#[repr(C)]
-#[derive(Copy, Clone, Debug)]
-pub struct Ciovec {
-    ptr: WasmPtr<u8, Array>,
-    len: u32,
-}
-
-unsafe impl ValueType for Ciovec {}
